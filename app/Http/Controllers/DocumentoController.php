@@ -126,30 +126,9 @@ class DocumentoController extends Controller
             $files = $request->file('files');
     
             foreach ($files as $file) {
-                $extension = strtolower($file->getClientOriginalExtension());
-                $uniqueName = uniqid();
-                $filename = $uniqueName . '.' . $extension;
-                $originalFilename = $uniqueName . '_original.' . $extension;
-    
-                // Guardar archivo con marca de agua (se sobrescribe después de aplicarla)
-                $path = $file->storeAs('uploads', $filename, 'public');
-                $fullPath = public_path("storage/{$path}");
-    
-                // Copiar archivo original con sufijo _original
-                $originalPath = 'uploads/' . $originalFilename;
-                $originalFullPath = public_path("storage/{$originalPath}");
-                copy($fullPath, $originalFullPath);
-    
-                // Aplicar marca de agua sobre la versión principal
-                if (in_array($extension, ['jpg', 'jpeg', 'png'])) {
-                    $this->agregarMarcaDeAgua($fullPath, $extension);
-                } elseif ($extension === 'pdf') {
-                    $this->agregarMarcaDeAguaPDF($fullPath);
-                }
-    
-                // Guardar rutas
-                $uploadedFilesWatermarked[] = $path;
-                $uploadedFilesOriginal[] = $originalPath;
+                $guardado = $this->guardarArchivoConMarcaDeAgua($file);
+                $uploadedFilesWatermarked[] = $guardado['watermarked'];
+                $uploadedFilesOriginal[] = $guardado['original'];
             }
     
 
@@ -265,6 +244,101 @@ private function agregarMarcaDeAguaPDF($pdfPath)
     $pdf->Output($outputPath, 'F');
 }
 
+private function guardarArchivoConMarcaDeAgua($file): array
+{
+    $extension = strtolower($file->getClientOriginalExtension());
+    $uniqueName = uniqid();
+    $filename = $uniqueName . '.' . $extension;
+    $originalFilename = $uniqueName . '_original.' . $extension;
+
+    $path = $file->storeAs('uploads', $filename, 'public');
+    $fullPath = public_path("storage/{$path}");
+
+    $originalPath = 'uploads/' . $originalFilename;
+    $originalFullPath = public_path("storage/{$originalPath}");
+    copy($fullPath, $originalFullPath);
+
+    if (in_array($extension, ['jpg', 'jpeg', 'png'])) {
+        $this->agregarMarcaDeAgua($fullPath, $extension);
+    } elseif ($extension === 'pdf') {
+        $this->agregarMarcaDeAguaPDF($fullPath);
+    }
+
+    return [
+        'watermarked' => $path,
+        'original' => $originalPath,
+    ];
+}
+
+private function rutaArchivoOriginal($path): string
+{
+    $info = pathinfo($path);
+    $dir = ($info['dirname'] === '.' || $info['dirname'] === '') ? '' : $info['dirname'] . '/';
+
+    return $dir . $info['filename'] . '_original.' . ($info['extension'] ?? '');
+}
+
+private function agregarArchivosOriginales($plantillaName, $documento, $updateData, array $nuevosOriginales)
+{
+    if (!str_ends_with($plantillaName, '_pendientes') || empty($nuevosOriginales)) {
+        return;
+    }
+
+    $collectionOriginales = str_replace('_pendientes', '_originales', $plantillaName);
+    $originalDoc = null;
+
+    $rutasOriginalesExistentes = [];
+    if (!empty($documento['Recurso Digital']) && is_array($documento['Recurso Digital'])) {
+        $rutasOriginalesExistentes = array_map([$this, 'rutaArchivoOriginal'], $documento['Recurso Digital']);
+    }
+
+    foreach ($rutasOriginalesExistentes as $rutaOriginal) {
+        $originalDoc = DB::connection('mongodb')->collection($collectionOriginales)
+            ->where('Recurso Digital', $rutaOriginal)
+            ->first();
+
+        if ($originalDoc) {
+            break;
+        }
+    }
+
+    if (!$originalDoc && isset($documento['created_at'])) {
+        $originalDoc = DB::connection('mongodb')->collection($collectionOriginales)
+            ->where('created_at', $documento['created_at'])
+            ->first();
+    }
+
+    $originalUpdate = $updateData;
+    unset($originalUpdate['Recurso Digital']);
+
+    if ($originalDoc) {
+        $archivosOriginales = $originalDoc['Recurso Digital'] ?? [];
+        if (!is_array($archivosOriginales)) {
+            $archivosOriginales = [];
+        }
+
+        foreach ($nuevosOriginales as $originalPath) {
+            if (!in_array($originalPath, $archivosOriginales)) {
+                $archivosOriginales[] = $originalPath;
+            }
+        }
+
+        $originalUpdate['Recurso Digital'] = $archivosOriginales;
+
+        DB::connection('mongodb')->collection($collectionOriginales)
+            ->where('_id', $originalDoc['_id'])
+            ->update($originalUpdate);
+
+        return;
+    }
+
+    $originalData = $updateData;
+    $originalData['Recurso Digital'] = $nuevosOriginales;
+    $originalData['created_at'] = $documento['created_at'] ?? now();
+
+    DB::connection('mongodb')->collection($collectionOriginales)->insert($originalData);
+}
+
 
 
 
@@ -319,7 +393,8 @@ private function agregarMarcaDeAguaPDF($pdfPath)
     $request->validate([
         'files.*' => 'nullable|file|mimes:pdf,jpg,png,mp4,mp3,wav,gif|max:40480',
         'delete_files' => 'nullable|array',
-        'existing_files' => 'nullable|array'
+        'existing_files' => 'nullable|array',
+        'document_data' => 'nullable|array',
     ]);
 
     Log::info('Datos recibidos para actualizar:', $request->all());
@@ -330,7 +405,9 @@ private function agregarMarcaDeAguaPDF($pdfPath)
         return response()->json(['error' => 'Documento no encontrado'], 404);
     }
 
-    $updateData = $request->except(['files', 'delete_files', 'existing_files', '_id']);
+    $documento = is_array($documento) ? $documento : (array) $documento;
+    $updateData = $this->extraerDatosActualizacion($request, $documento);
+    $clavesDuplicadas = $this->clavesDuplicadasPorPhp($documento);
 
     // 🔹 Obtener archivos actuales desde `existing_files` si se envían
     $archivosActuales = $request->input('existing_files', []);
@@ -347,30 +424,90 @@ private function agregarMarcaDeAguaPDF($pdfPath)
         }
     }
 
-   // Manejo de nuevos archivos subidos
-   if ($request->hasFile('files')) {
-    $files = $request->file('files');
-    foreach ($files as $file) {
-        $filePath = $file->store('uploads', 'public');
+    $uploadedFilesOriginal = [];
 
-        // Asegurarse de no agregar archivos duplicados
-        if (!in_array($filePath, $archivosActuales)) {
-            $archivosActuales[] = $filePath; // Agregar ruta de archivo al array si no existe ya
+    if ($request->hasFile('files')) {
+        foreach ($request->file('files') as $file) {
+            $guardado = $this->guardarArchivoConMarcaDeAgua($file);
+
+            if (!in_array($guardado['watermarked'], $archivosActuales)) {
+                $archivosActuales[] = $guardado['watermarked'];
+            }
+
+            $uploadedFilesOriginal[] = $guardado['original'];
         }
     }
-}
-    // 🔹 Asegurar que solo exista 'Recurso Digital' y no 'Recurso_Digital'
+
     unset($documento['Recurso_Digital']);
 
-    // Guardar la lista final de archivos
     $updateData['Recurso Digital'] = $archivosActuales;
     $updateData['updated_at'] = Carbon::now()->toDateTimeString();
 
-    DB::connection('mongodb')->collection($plantillaName)
-        ->where('_id', $documentId)
-        ->update($updateData);
+    $query = DB::connection('mongodb')->collection($plantillaName)->where('_id', $documentId);
+    $query->update($updateData);
+
+    if (!empty($clavesDuplicadas)) {
+        $query->drop($clavesDuplicadas);
+    }
+
+    if (!empty($uploadedFilesOriginal)) {
+        $this->agregarArchivosOriginales($plantillaName, $documento, $updateData, $uploadedFilesOriginal);
+    }
 
     return response()->json(['message' => 'Documento actualizado con éxito']);
+}
+
+private function extraerDatosActualizacion(Request $request, array $documento): array
+{
+    $incoming = $request->input('document_data');
+
+    if (is_string($incoming)) {
+        $incoming = json_decode($incoming, true) ?: [];
+    }
+
+    if (!is_array($incoming) || $incoming === []) {
+        $incoming = $request->except([
+            'files', 'delete_files', 'existing_files', '_id', 'document_data', '_coleccion'
+        ]);
+    }
+
+    $protected = ['_id', 'created_at', 'Recurso Digital', 'Recurso_Digital', '_coleccion'];
+    $updateData = [];
+
+    foreach ($documento as $originalKey => $originalValue) {
+        if (in_array($originalKey, $protected, true)) {
+            continue;
+        }
+
+        $mangledKey = str_replace([' ', '.'], '_', $originalKey);
+
+        if (array_key_exists($originalKey, $incoming)) {
+            $updateData[$originalKey] = $incoming[$originalKey];
+        } elseif (array_key_exists($mangledKey, $incoming)) {
+            $updateData[$originalKey] = $incoming[$mangledKey];
+        }
+    }
+
+    return $updateData;
+}
+
+private function clavesDuplicadasPorPhp(array $documento): array
+{
+    $duplicates = [];
+
+    if (isset($documento['Recurso_Digital']) && isset($documento['Recurso Digital'])) {
+        $duplicates[] = 'Recurso_Digital';
+    }
+
+    foreach ($documento as $key => $value) {
+        $mangled = str_replace([' ', '.'], '_', $key);
+
+        if ($mangled !== $key && array_key_exists($mangled, $documento)) {
+            $duplicates[] = $mangled;
+        }
+    }
+
+    return array_values(array_unique($duplicates));
 }
 
 

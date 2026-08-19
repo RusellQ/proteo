@@ -63,10 +63,30 @@
         </div>
       </div>
 
-      <div class="pagination-container text-center mt-4">
-        <button v-for="page in totalPages" :key="page" @click="changePage(page)" class="btn btn-sm"
-          :class="{ active: currentPage === page }">
+      <div class="pagination-container text-center mt-4" v-if="totalPages > 1">
+        <button
+          class="btn btn-sm"
+          :disabled="currentPage === 1"
+          @click="changePage(currentPage - 1)"
+        >
+          Anterior
+        </button>
+        <button
+          v-for="(page, index) in visiblePages"
+          :key="page === '...' ? 'ellipsis-' + index : page"
+          class="btn btn-sm"
+          :class="{ active: currentPage === page, ellipsis: page === '...' }"
+          :disabled="page === '...'"
+          @click="page !== '...' && changePage(page)"
+        >
           {{ page }}
+        </button>
+        <button
+          class="btn btn-sm"
+          :disabled="currentPage === totalPages"
+          @click="changePage(currentPage + 1)"
+        >
+          Siguiente
         </button>
       </div>
     </div>
@@ -265,6 +285,9 @@ const getFileUrl = (file) => {
         if (result.isConfirmed) {
           await axios.delete(`/documentos/${plantillaName.value}/${documentoId}`);
           documentos.value = documentos.value.filter(doc => doc._id.$oid !== documentoId);
+          if (currentPage.value > totalPages.value) {
+            currentPage.value = Math.max(totalPages.value, 1);
+          }
           Swal.fire('Eliminado', 'El documento se ha eliminado exitosamente.', 'success');
         }
       } catch (error) {
@@ -293,8 +316,42 @@ const openFancybox = (documento) => {
       return documentos.value.slice(start, start + itemsPerPage.value);
     });
 
+    const visiblePages = computed(() => {
+      const total = totalPages.value;
+      const current = currentPage.value;
+      const delta = 2;
+
+      if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+      }
+
+      const pages = [];
+      const rangeStart = Math.max(2, current - delta);
+      const rangeEnd = Math.min(total - 1, current + delta);
+
+      pages.push(1);
+
+      if (rangeStart > 2) {
+        pages.push('...');
+      }
+
+      for (let i = rangeStart; i <= rangeEnd; i++) {
+        pages.push(i);
+      }
+
+      if (rangeEnd < total - 1) {
+        pages.push('...');
+      }
+
+      pages.push(total);
+
+      return pages;
+    });
+
     const changePage = (page) => {
-      currentPage.value = page;
+      if (page >= 1 && page <= totalPages.value) {
+        currentPage.value = page;
+      }
     };
 
     const removeImage = (index) => {
@@ -322,11 +379,11 @@ const openFancybox = (documento) => {
       try {
         const formData = new FormData();
 
-        // Agregar todos los campos excepto 'Recurso Digital'
         Object.keys(documentoEdit.value).forEach((key) => {
-          if (key !== 'Recurso Digital') {
-            formData.append(key, documentoEdit.value[key]);
-          }
+          if (['_id', 'Recurso Digital', 'created_at', 'updated_at'].includes(key)) return;
+          const value = documentoEdit.value[key];
+          if (value == null || typeof value === 'object') return;
+          formData.append(`document_data[${key}]`, value);
         });
 
         // 🔹 Agregar archivos ya existentes en 'Recurso Digital'
@@ -388,6 +445,7 @@ const openFancybox = (documento) => {
       eliminarDocumento,
       openFancybox,
       totalPages,
+      visiblePages,
       paginatedDocumentos,
       changePage,
       removeImage,
@@ -497,17 +555,26 @@ const openFancybox = (documento) => {
 .pagination-container {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .pagination-container .btn {
-  margin: 0 5px;
+  margin: 0;
   padding: 5px 10px;
+  min-width: 36px;
 }
 
 .pagination-container .btn.active {
   background-color: #007bff;
   color: #fff;
+}
+
+.pagination-container .btn.ellipsis {
+  border: none;
+  background: transparent;
+  pointer-events: none;
+  min-width: auto;
 }
 
 .card {
@@ -520,13 +587,8 @@ const openFancybox = (documento) => {
 }
 
 @media (max-width: 767.98px) {
-  .pagination-container {
-    flex-wrap: wrap;
-  }
-
   .pagination-container .btn {
-    flex: 1 1 auto;
-    margin-bottom: 5px;
+    margin-bottom: 0;
   }
 }
 </style>

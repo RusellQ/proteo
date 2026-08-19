@@ -362,10 +362,10 @@ export default {
         const formData = new FormData();
 
         Object.keys(this.documentoEdit).forEach((key) => {
-          if (['Recurso Digital', '_id', '_coleccion'].includes(key)) return;
+          if (['Recurso Digital', '_id', '_coleccion', 'created_at', 'updated_at'].includes(key)) return;
           const value = this.documentoEdit[key];
           if (value == null || typeof value === 'object') return;
-          formData.append(key, value);
+          formData.append(`document_data[${key}]`, value);
         });
 
         if (Array.isArray(this.documentoEdit['Recurso Digital'])) {
