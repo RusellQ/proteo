@@ -11,6 +11,7 @@
     use App\Http\Controllers\RespaldoController;
     use App\Http\Controllers\DescargaController;
     use App\Http\Controllers\NoticiaController;
+    use App\Http\Controllers\EstadisticasController;
 
 
     /*
@@ -97,6 +98,8 @@
 
 
     Route::get('/dashboard', [UsersController::class, 'dashboard'])->name('dashboard')->middleware('auth');
+    Route::get('/dashboard/plantillas', [EstadisticasController::class, 'plantillas'])->middleware('auth');
+    Route::get('/dashboard/estadisticas', [EstadisticasController::class, 'estadisticas'])->middleware('auth');
 
     Route::get('/Createuser', function () {
         return view('administrativas.createuser');
