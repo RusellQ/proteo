@@ -553,6 +553,7 @@
             </li>
             @endif
 
+            {{-- Estadísticas oculto de momento; se usa el dashboard de inicio
             @if(Auth::check() && Auth::user()->hasRole(['administrador', 'onepiece']))
             <li class="nav-item {{ $navIs('estadisticas') ? 'active' : '' }}">
                 <a class="nav-link" href="/estadisticas" title="Estadísticas">
@@ -561,6 +562,7 @@
                 </a>
             </li>
             @endif
+            --}}
 
             @if(Auth::check() && Auth::user()->hasRole(['onepiece']))
             <li class="nav-item {{ $navIs('adminpublic') ? 'active' : '' }}">
