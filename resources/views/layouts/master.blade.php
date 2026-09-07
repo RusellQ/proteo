@@ -535,6 +535,17 @@
             </li>
             @endif
 
+            {{--
+            @if(Auth::check() && Auth::user()->hasRole(['administrador', 'validador', 'onepiece']))
+            <li class="nav-item {{ $navIs('comentarios') ? 'active' : '' }}">
+                <a class="nav-link" href="/comentarios" title="Comentarios">
+                    <i class="fas fa-comments"></i>
+                    <span>Comentarios</span>
+                </a>
+            </li>
+            @endif
+            --}}
+
             @if(Auth::check() && Auth::user()->hasRole(['carrusel', 'onepiece']))
             <li class="nav-item {{ $navIs('carrusel') ? 'active' : '' }}">
                 <a class="nav-link" href="/carrusel" title="Carrusel">
@@ -564,6 +575,17 @@
             @endif
             --}}
 
+            {{--
+            @if(Auth::check() && Auth::user()->hasRole(['administrador']))
+            <li class="nav-item {{ $navIs('noticiasadmin') ? 'active' : '' }}">
+                <a class="nav-link" href="/noticiasadmin" title="Noticias">
+                    <i class="fas fa-newspaper"></i>
+                    <span>Noticias</span>
+                </a>
+            </li>
+            @endif
+            --}}
+
             @if(Auth::check() && Auth::user()->hasRole(['onepiece']))
             <li class="nav-item {{ $navIs('adminpublic') ? 'active' : '' }}">
                 <a class="nav-link" href="/adminpublic" title="Vista pública">
@@ -572,6 +594,17 @@
                 </a>
             </li>
             @endif
+
+            {{--
+            @if(Auth::check() && Auth::user()->hasRole(['administrador']))
+            <li class="nav-item {{ $navIs('investigadores') ? 'active' : '' }}">
+                <a class="nav-link" href="/investigadores" title="Investigadores">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Investigadores</span>
+                </a>
+            </li>
+            @endif
+            --}}
 
             @if(Auth::check() && Auth::user()->hasRole(['onepiece']))
             <li class="nav-item {{ $navUsuarios ? 'active' : '' }}">
