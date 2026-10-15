@@ -116,7 +116,9 @@
             </div>
 
             <div class="button-group">
-              <button type="submit" class="btn-primary">Crear documento</button>
+              <button type="submit" class="btn-primary" :disabled="guardando">
+                {{ guardando ? 'Guardando…' : 'Crear documento' }}
+              </button>
             </div>
           </form>
         </section>
@@ -145,6 +147,7 @@ export default {
             camposPlantilla: [], // Campos de la plantilla seleccionada
             documentData: {}, // Datos del formulario
             files: {}, // Archivos por nombre de campo
+            guardando: false,
         };
     },
     computed: {
@@ -220,7 +223,22 @@ export default {
                 };
             }
         },
+        archivosSeleccionados() {
+            const archivos = [];
+
+            for (const campo of this.camposPlantilla) {
+                if (campo.type === 'file' && this.files[campo.name] && this.files[campo.name].length > 0) {
+                    archivos.push(...this.files[campo.name]);
+                }
+            }
+
+            return archivos;
+        },
         async onSubmit() {
+            if (this.guardando) {
+                return;
+            }
+
             // Validación de campos requeridos
             const camposRequeridosVacios = this.camposPlantilla
                 .filter(campo => campo.required)
@@ -242,36 +260,74 @@ export default {
                 return;
             }
 
-            // Mostrar datos y archivos antes de enviar
-            console.log('Datos del documento antes de crear:', this.documentData);
-            console.log('Archivos adjuntos:', this.files);
+            const archivos = this.archivosSeleccionados();
+            const tamanoLote = 8;
+            const lotes = [];
 
-            const formData = new FormData();
-
-            // Añadir los datos del documento al FormData
-            for (const campo of this.camposPlantilla) {
-                if (campo.type !== 'file') {
-                    formData.append(`document_data[${campo.name}]`, this.documentData[campo.name] || '');
+            if (archivos.length === 0) {
+                lotes.push([]);
+            } else {
+                for (let i = 0; i < archivos.length; i += tamanoLote) {
+                    lotes.push(archivos.slice(i, i + tamanoLote));
                 }
             }
 
-            // Agregar archivos al FormData
-            for (const campo of this.camposPlantilla) {
-                if (campo.type === 'file') {
-                    if (this.files[campo.name] && this.files[campo.name].length > 0) {
-                        this.files[campo.name].forEach(file => {
-                            formData.append(`files[]`, file);
-                        });
-                    }
-                }
-            }
+            this.guardando = true;
+            let documentId = null;
+            let archivosGuardados = [];
+
+            Swal.fire({
+                title: 'Creando documento',
+                html: archivos.length > tamanoLote
+                    ? `Procesando imágenes 1–${Math.min(tamanoLote, archivos.length)} de ${archivos.length}…`
+                    : 'Guardando el documento…',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => Swal.showLoading(),
+            });
 
             try {
-                const response = await axios.post(`/documentos/${this.selectedPlantilla}`, formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
+                for (let i = 0; i < lotes.length; i++) {
+                    const desde = i * tamanoLote;
+                    const hasta = Math.min(desde + lotes[i].length, archivos.length);
+
+                    if (archivos.length > tamanoLote) {
+                        Swal.update({
+                            html: `Procesando imágenes ${desde + 1}–${hasta} de ${archivos.length}…`,
+                        });
+                        Swal.showLoading();
                     }
-                });
+
+                    const formData = new FormData();
+
+                    if (i === 0) {
+                        for (const campo of this.camposPlantilla) {
+                            if (campo.type !== 'file') {
+                                formData.append(`document_data[${campo.name}]`, this.documentData[campo.name] || '');
+                            }
+                        }
+
+                        lotes[i].forEach(file => formData.append('files[]', file));
+
+                        const response = await axios.post(`/documentos/${this.selectedPlantilla}`, formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' },
+                        });
+
+                        documentId = response.data.id;
+                        archivosGuardados = response.data.files || [];
+                    } else {
+                        archivosGuardados.forEach(path => formData.append('existing_files[]', path));
+                        lotes[i].forEach(file => formData.append('files[]', file));
+
+                        const response = await axios.post(
+                            `/documentos/${this.selectedPlantilla}_pendientes/${documentId}`,
+                            formData,
+                            { headers: { 'Content-Type': 'multipart/form-data' } }
+                        );
+
+                        archivosGuardados = response.data.files || archivosGuardados;
+                    }
+                }
 
                 Swal.fire({
                     title: 'Éxito',
@@ -280,18 +336,32 @@ export default {
                     confirmButtonColor: '#3085d6'
                 });
 
-                // Limpiar el formulario y conservar la plantilla seleccionada
                 this.documentData = {};
                 this.files = {};
-                this.$refs.form.reset(); // Resetea los campos de archivo
+                this.$refs.form.reset();
             } catch (error) {
                 console.error('Error al crear el documento', error);
-                Swal.fire({
-                    title: 'Error',
-                    text: 'Hubo un problema al crear el documento. Por favor, inténtalo de nuevo.',
-                    icon: 'error',
-                    confirmButtonColor: '#3085d6'
-                });
+
+                if (documentId) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Documento creado de forma incompleta',
+                        text: `Se guardaron ${archivosGuardados.length} de ${archivos.length} archivos antes de que el servidor cortara la solicitud. El documento ya existe; puede agregar el resto editándolo.`,
+                        confirmButtonColor: '#3085d6'
+                    });
+                    this.documentData = {};
+                    this.files = {};
+                    this.$refs.form.reset();
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Hubo un problema al crear el documento. Por favor, inténtalo de nuevo.',
+                        icon: 'error',
+                        confirmButtonColor: '#3085d6'
+                    });
+                }
+            } finally {
+                this.guardando = false;
             }
         }
     },
