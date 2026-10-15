@@ -123,6 +123,7 @@ class DocumentoController extends Controller
         $uploadedFilesOriginal = [];
     
         if ($request->hasFile('files')) {
+            @set_time_limit(0);
             $files = $request->file('files');
     
             foreach ($files as $file) {
@@ -148,7 +149,7 @@ class DocumentoController extends Controller
     
         // Guardar en colección _pendientes (con marca de agua)
         $collectionPendientes = $plantillaName . '_pendientes';
-        DB::connection('mongodb')->collection($collectionPendientes)->insert($documentData);
+        $documentId = DB::connection('mongodb')->collection($collectionPendientes)->insertGetId($documentData);
     
         // Guardar en colección _originales (con archivos originales)
         if (!empty($uploadedFilesOriginal)) {
@@ -159,44 +160,117 @@ class DocumentoController extends Controller
             DB::connection('mongodb')->collection($collectionOriginales)->insert($originalData);
         }
     
-        return response()->json(['message' => 'Documento guardado con éxito'], 201);
+        return response()->json([
+            'message' => 'Documento guardado con éxito',
+            'id' => (string) $documentId,
+            'files' => $uploadedFilesWatermarked,
+        ], 201);
     }
     
 private function agregarMarcaDeAgua($imagePath, $extension)
 {
-    $fontPath = public_path('fonts/alfa.ttf'); // Asegúrate que exista
+    $fontPath = public_path('fonts/alfa.ttf');
+    if (!is_file($fontPath)) {
+        return;
+    }
+
     $image = null;
 
     if ($extension === 'jpg' || $extension === 'jpeg') {
-        $image = imagecreatefromjpeg($imagePath);
+        $image = @imagecreatefromjpeg($imagePath);
     } elseif ($extension === 'png') {
-        $image = imagecreatefrompng($imagePath);
+        $image = @imagecreatefrompng($imagePath);
     }
 
-    if (!$image) return;
+    if (!$image) {
+        return;
+    }
 
-    $color = imagecolorallocatealpha($image, 128, 0, 32, 75); 
-    $text = "AGQROO";
-    $angle = 45;
-    $fontSize = 30;
+    if (function_exists('imagepalettetotruecolor')) {
+        imagepalettetotruecolor($image);
+    }
+
+    $sprite = $this->spriteMarcaDeAgua($fontPath);
+    if (!$sprite) {
+        imagedestroy($image);
+        return;
+    }
 
     $width = imagesx($image);
     $height = imagesy($image);
+    $spriteW = imagesx($sprite);
+    $spriteH = imagesy($sprite);
 
-    // Repetir marca cada 200px en X y Y
-    for ($x = -$width; $x < $width * 2; $x += 200) {
-        for ($y = -$height; $y < $height * 2; $y += 200) {
-            imagettftext($image, $fontSize, $angle, $x, $y, $color, $fontPath, $text);
+    imagealphablending($image, true);
+
+    for ($y = -$spriteH; $y < $height; $y += 200) {
+        for ($x = -$spriteW; $x < $width; $x += 200) {
+            imagecopy($image, $sprite, $x, $y, 0, 0, $spriteW, $spriteH);
         }
     }
 
     if ($extension === 'jpg' || $extension === 'jpeg') {
         imagejpeg($image, $imagePath, 90);
     } elseif ($extension === 'png') {
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
         imagepng($image, $imagePath);
     }
 
     imagedestroy($image);
+}
+
+private function spriteMarcaDeAgua(string $fontPath)
+{
+    static $sprite = null;
+
+    if ($sprite instanceof \GdImage) {
+        return $sprite;
+    }
+
+    $text = 'AGQROO';
+    $fontSize = 30;
+    $angle = 45;
+    $bbox = imagettfbbox($fontSize, $angle, $fontPath, $text);
+
+    if ($bbox === false) {
+        return null;
+    }
+
+    $xs = [$bbox[0], $bbox[2], $bbox[4], $bbox[6]];
+    $ys = [$bbox[1], $bbox[3], $bbox[5], $bbox[7]];
+    $minX = min($xs);
+    $maxX = max($xs);
+    $minY = min($ys);
+    $maxY = max($ys);
+    $pad = 4;
+    $tw = (int) ceil($maxX - $minX) + ($pad * 2);
+    $th = (int) ceil($maxY - $minY) + ($pad * 2);
+
+    if ($tw < 1 || $th < 1) {
+        return null;
+    }
+
+    $sprite = imagecreatetruecolor($tw, $th);
+    imagealphablending($sprite, false);
+    imagesavealpha($sprite, true);
+    $transparent = imagecolorallocatealpha($sprite, 0, 0, 0, 127);
+    imagefilledrectangle($sprite, 0, 0, $tw - 1, $th - 1, $transparent);
+    imagealphablending($sprite, true);
+
+    $color = imagecolorallocatealpha($sprite, 128, 0, 32, 75);
+    imagettftext(
+        $sprite,
+        $fontSize,
+        $angle,
+        (int) ($pad - $minX),
+        (int) ($pad - $minY),
+        $color,
+        $fontPath,
+        $text
+    );
+
+    return $sprite;
 }
 
 private function agregarMarcaDeAguaPDF($pdfPath)
@@ -391,7 +465,7 @@ private function agregarArchivosOriginales($plantillaName, $documento, $updateDa
     public function updateDocument(Request $request, $plantillaName, $documentId)
 {
     $request->validate([
-        'files.*' => 'nullable|file|mimes:pdf,jpg,png,mp4,mp3,wav,gif|max:40480',
+        'files.*' => 'nullable|file|mimes:pdf,jpg,png,mp4,mp3,wav,gif,tiff|max:40480',
         'delete_files' => 'nullable|array',
         'existing_files' => 'nullable|array',
         'document_data' => 'nullable|array',
@@ -427,6 +501,8 @@ private function agregarArchivosOriginales($plantillaName, $documento, $updateDa
     $uploadedFilesOriginal = [];
 
     if ($request->hasFile('files')) {
+        @set_time_limit(0);
+
         foreach ($request->file('files') as $file) {
             $guardado = $this->guardarArchivoConMarcaDeAgua($file);
 
@@ -454,7 +530,10 @@ private function agregarArchivosOriginales($plantillaName, $documento, $updateDa
         $this->agregarArchivosOriginales($plantillaName, $documento, $updateData, $uploadedFilesOriginal);
     }
 
-    return response()->json(['message' => 'Documento actualizado con éxito']);
+    return response()->json([
+        'message' => 'Documento actualizado con éxito',
+        'files' => $archivosActuales,
+    ]);
 }
 
 private function extraerDatosActualizacion(Request $request, array $documento): array
