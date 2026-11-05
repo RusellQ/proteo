@@ -43,7 +43,7 @@
               <i class="fas fa-external-link-alt"></i>
             </a>
           </span>
-          <span v-else>{{ doc[field] }}</span>
+          <span v-else>{{ fechaEnVista(doc[field]) }}</span>
         </p>
       </div>
 
@@ -309,6 +309,13 @@ export default {
 
     esCampoFecha(campo) {
       return campo.toLowerCase().includes('fecha');
+    },
+
+    fechaEnVista(valor) {
+      if (typeof valor !== 'string') return valor;
+      const iso = valor.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+      if (!iso) return valor;
+      return `${iso[3]}/${iso[2]}/${iso[1]}`;
     },
 
     handleFileUpload(event) {
