@@ -468,6 +468,15 @@
                 </a>
             </li>
 
+            @if(Auth::check() && Auth::user()->hasRole(['administrador', 'onepiece']))
+            <li class="nav-item {{ $navIs('reportes') ? 'active' : '' }}">
+                <a class="nav-link" href="/reportes" title="Reportes">
+                    <i class="fas fa-file-pdf"></i>
+                    <span>Reportes</span>
+                </a>
+            </li>
+            @endif
+
             <!-- Divider -->
             <hr class="sidebar-divider">
 

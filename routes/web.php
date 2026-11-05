@@ -12,6 +12,7 @@
     use App\Http\Controllers\DescargaController;
     use App\Http\Controllers\NoticiaController;
     use App\Http\Controllers\EstadisticasController;
+    use App\Http\Controllers\ReportesController;
 
 
     /*
@@ -147,6 +148,11 @@
     Route::get('/estadisticas', function () {
         return view('administrativas.estadisticas');
     });
+
+    Route::get('/reportes/datos/{plantillaName}', [ReportesController::class, 'show'])->middleware('auth');
+    Route::get('/reportes', function () {
+        return view('administrativas.reportes');
+    })->middleware('auth');
 
     Route::get('/adminpublic', function () {
         return view('administrativas.adminpublic');
