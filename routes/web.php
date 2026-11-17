@@ -188,7 +188,7 @@
     Route::post('/logout', [UsersController::class, 'logout'])->name('users.logout');
 
     Route::get('/list-users', [UsersController::class, 'listUsers'])->name('users.list');
-    Route::delete('/users/{id}', [UsersController::class, 'destroy'])->name('users.destroy');
+    Route::post('/users/{id}/delete', [UsersController::class, 'destroy'])->name('users.destroy');
     Route::put('/users/{id}', [UsersController::class, 'update'])->name('users.update');
 
 
@@ -200,7 +200,7 @@
     Route::get('/plantillasEdit', [PlantillaController::class, 'getModelosforEdit']);
 
     Route::post('/plantillas', [PlantillaController::class, 'create']);
-    Route::delete('/plantillas/{plantillaName}', [PlantillaController::class, 'delete']);
+    Route::post('/plantillas/{plantillaName}/delete', [PlantillaController::class, 'delete']);
     Route::put('/plantillas/{plantillaName}', [PlantillaController::class, 'update']);
     Route::get('/plantillas/{plantillaName}/fields', [PlantillaController::class, 'getFieldsFromModel']);
 
@@ -211,19 +211,19 @@
     Route::get('/documentos/plantillas', [DocumentoController::class, 'getforDocuments']);
     Route::get('/documentos/{plantillaName}', [DocumentoController::class, 'getAllDocuments']);
     Route::post('/documentos/{plantillaName}', [DocumentoController::class, 'storeDocument']);
-    Route::delete('/documentos/{plantillaName}/{documentId}', [DocumentoController::class, 'deleteDocument']);
+    Route::post('/documentos/{plantillaName}/{documentId}/delete', [DocumentoController::class, 'deleteDocument']);
     Route::post('/documentos/{plantillaName}/{documentId}', [DocumentoController::class, 'updateDocument']);
     Route::get('/ultimos-documentos', [DocumentoController::class, 'obtenerUltimosDocumentos']);
 
     Route::get('/documentos-pendientes', [DocumentoController::class, 'getPendientes']);
     Route::post('/aprobar-documentos/{plantillaName}/{documentId}', [DocumentoController::class, 'approveDocument']);
-    Route::delete('/denegar-documentos/{plantillaName}/{documentId}', [DocumentoController::class, 'denyDocument']);
+    Route::post('/denegar-documentos/{plantillaName}/{documentId}', [DocumentoController::class, 'denyDocument']);
 
     //CARRUSEL
     Route::post('/carrousel/store', [CarrouselController::class, 'store']);
     Route::get('carrousel/images', [CarrouselController::class, 'getImagesForCarousel']);
     Route::get('carrousel/all-images', [CarrouselController::class, 'getAllCarrouselImages']);
-    Route::delete('/carrousel/delete/{id}', [CarrouselController::class, 'eliminarImagen']);
+    Route::post('/carrousel/delete/{id}', [CarrouselController::class, 'eliminarImagen']);
 
     //RESPALDO
 
@@ -252,7 +252,7 @@
     Route::put('/comentarios/aprobar/{id}', [ComentariosController::class, 'aprobarComentario']);
 
     // Ruta para denegar (y eliminar) un comentario
-    Route::delete('/comentarios/denegar/{id}', [ComentariosController::class, 'denegarComentario']);
+    Route::post('/comentarios/denegar/{id}', [ComentariosController::class, 'denegarComentario']);
 
     // Ruta para obtener todos los comentarios pendientes
     Route::get('/comentarios/pendientes', [ComentariosController::class, 'obtenerComentariosPendientes']);

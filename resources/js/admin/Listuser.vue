@@ -188,7 +188,7 @@ export default {
         cancelButtonText: 'Cancelar'
       }).then((result) => {
         if (result.isConfirmed) {
-          axios.delete(`/users/${user._id}`)
+          axios.post(`/users/${user._id}/delete`)
             .then(response => {
               Swal.fire(
                 'Eliminado',

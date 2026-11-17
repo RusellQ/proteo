@@ -103,7 +103,7 @@ export default {
         confirmButtonText: 'Sí, eliminarlo'
       }).then((result) => {
         if (result.isConfirmed) {
-          axios.delete(`/documentos/${tipo_coleccion}/${documentoId}`)
+          axios.post(`/documentos/${tipo_coleccion}/${documentoId}/delete`)
             .then(response => {
               const index = this.resultados.findIndex(doc => doc._id.$oid === documentoId);
               if (index !== -1) {

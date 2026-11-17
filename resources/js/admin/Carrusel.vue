@@ -150,7 +150,7 @@ export default {
       })
         .then((result) => {
           if (result.isConfirmed) {
-            axios.delete(`/carrousel/delete/${id}`)
+            axios.post(`/carrousel/delete/${id}`)
               .then(response => {
                 Swal.fire({
                   icon: 'success',

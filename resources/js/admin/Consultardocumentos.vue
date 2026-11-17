@@ -444,7 +444,7 @@ const getFileUrl = (file) => {
         });
 
         if (result.isConfirmed) {
-          await axios.delete(`/documentos/${plantillaName.value}/${documentoId}`);
+          await axios.post(`/documentos/${plantillaName.value}/${documentoId}/delete`);
           documentos.value = documentos.value.filter(doc => doc._id.$oid !== documentoId);
           if (currentPage.value > totalPages.value) {
             currentPage.value = Math.max(totalPages.value, 1);

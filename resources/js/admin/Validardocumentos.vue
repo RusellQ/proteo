@@ -494,7 +494,7 @@ export default {
 
         if (!result.isConfirmed) return false;
 
-        const response = await axios.delete(`/denegar-documentos/${collection}/${docId}`);
+        const response = await axios.post(`/denegar-documentos/${collection}/${docId}`);
         if (response.data.success) {
           this.obtenerPendientes();
           await Swal.fire('Denegado', 'Documento eliminado con éxito.', 'success');
