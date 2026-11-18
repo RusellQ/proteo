@@ -308,7 +308,9 @@ export default {
     },
 
     esCampoFecha(campo) {
-      return campo.toLowerCase().includes('fecha');
+      const nombre = campo.toLowerCase();
+      if (nombre === 'fechas extremas') return false;
+      return nombre.includes('fecha');
     },
 
     fechaEnVista(valor) {
