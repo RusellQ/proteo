@@ -43,7 +43,7 @@
               <i class="fas fa-external-link-alt"></i>
             </a>
           </span>
-          <span v-else>{{ doc[field] }}</span>
+          <span v-else>{{ fechaEnVista(doc[field]) }}</span>
         </p>
       </div>
 
@@ -308,7 +308,16 @@ export default {
     },
 
     esCampoFecha(campo) {
-      return campo.toLowerCase().includes('fecha');
+      const nombre = campo.toLowerCase();
+      if (nombre === 'fechas extremas') return false;
+      return nombre.includes('fecha');
+    },
+
+    fechaEnVista(valor) {
+      if (typeof valor !== 'string') return valor;
+      const iso = valor.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+      if (!iso) return valor;
+      return `${iso[3]}/${iso[2]}/${iso[1]}`;
     },
 
     handleFileUpload(event) {
@@ -487,7 +496,7 @@ export default {
 
         if (!result.isConfirmed) return false;
 
-        const response = await axios.delete(`/denegar-documentos/${collection}/${docId}`);
+        const response = await axios.post(`/denegar-documentos/${collection}/${docId}`);
         if (response.data.success) {
           this.obtenerPendientes();
           await Swal.fire('Denegado', 'Documento eliminado con éxito.', 'success');

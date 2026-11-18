@@ -193,7 +193,7 @@ export default {
 
       if (result.isConfirmed) {
         try {
-          const response = await axios.delete(`/plantillas/${plantilla}`);
+          const response = await axios.post(`/plantillas/${plantilla}/delete`);
           Swal.fire({
             icon: 'success',
             title: 'Eliminado',

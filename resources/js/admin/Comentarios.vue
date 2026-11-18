@@ -122,7 +122,7 @@ export default {
                 });
 
                 if (result.isConfirmed) {
-                    await axios.delete(`/comentarios/denegar/${comentarioId}`);
+                    await axios.post(`/comentarios/denegar/${comentarioId}`);
                     await this.obtenerComentarios();
                     Swal.fire({
                         title: 'Denegado',

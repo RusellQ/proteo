@@ -160,7 +160,8 @@ public function create(Request $request)
         'fields' => 'required|array',
     ]);
 
-    $plantillaName = str_replace([' ', '_'], '', $request->input('plantilla_name'));
+    // Normaliza a StudlyCase para que archivo, clase PHP y colección coincidan (importante en Linux)
+    $plantillaName = Str::studly($request->input('plantilla_name'));
     $pendientesName = "{$plantillaName}_pendientes";
 
     // Verificar si las colecciones ya existen

@@ -60,6 +60,9 @@ app.component('respaldo-vue', Respaldo);
 import Estadisticas from './admin/Estadisticas.vue';
 app.component('estadisticas-vue', Estadisticas);
 
+import Reportes from './admin/Reportes.vue';
+app.component('reportes-vue', Reportes);
+
 import Adminpublic from './admin/Adminpublic.vue';
 app.component('adminpublic-vue', Adminpublic);
 
